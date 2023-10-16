@@ -57,7 +57,7 @@ class BiliWeb(UploadBase):
             bili.login(self.persistence_path, self.user)
             for file in file_list:
                 video_part = bili.upload_file(file.video, self.lines, self.threads)  # 上传视频
-                video_part['title'] = video_part['title'][:80]
+                video_part['title'] = self.data["format_title"][:80]
                 video.append(video_part)  # 添加已经上传的视频
             video.title = self.data["format_title"][:80]  # 稿件标题限制80字
             if self.credits:
@@ -479,7 +479,7 @@ class BiliBili:
                 res = self.__session.post("https:" + ret["fetch_url"], headers=fetch_headers, timeout=15).json()
                 if res.get('OK') == 1:
                     logger.info(f'{filename} uploaded >> {total_size / 1000 / 1000 / cost:.2f}MB/s. {res}')
-                    return {"title": splitext(filename)[0], "filename": ret["bili_filename"], "desc": ""}
+                    return {"title": splitext(basename(filename))[0], "filename": ret["bili_filename"], "desc": ""}
                 raise IOError(res)
             except IOError:
                 ii += 1
@@ -522,7 +522,7 @@ class BiliBili:
         r = self.__session.post(f"https:{fetch_url}", headers=fetch_headers, timeout=5).json()
         if r["OK"] != 1:
             raise Exception(r)
-        return {"title": splitext(filename)[0], "filename": bili_filename, "desc": ""}
+        return {"title": splitext(basename(filename))[0], "filename": bili_filename, "desc": ""}
 
     async def upos(self, file, total_size, ret, tasks=3):
         filename = file.name
@@ -570,7 +570,7 @@ class BiliBili:
                 r = self.__session.post(url, params=p, json={"parts": parts}, headers=headers, timeout=15).json()
                 if r.get('OK') == 1:
                     logger.info(f'{filename} uploaded >> {total_size / 1000 / 1000 / cost:.2f}MB/s. {r}')
-                    return {"title": splitext(filename)[0], "filename": splitext(basename(upos_uri))[0], "desc": ""}
+                    return {"title": splitext(basename(filename))[0], "filename": splitext(basename(upos_uri))[0], "desc": ""}
                 raise IOError(r)
             except IOError:
                 attempt += 1
@@ -635,8 +635,11 @@ class BiliBili:
 
     def submit_web(self):
         logger.info('使用网页端api提交')
-        return self.__session.post(f'https://member.bilibili.com/x/vu/web/add?csrf={self.__bili_jct}', timeout=5,
-                                   json=asdict(self.video)).json()
+        data = asdict(self.video)
+        data["csrf"] = self.__bili_jct
+        
+        return self.__session.post(f'https://member.bilibili.com/x/vu/web/add/v3?csrf={self.__bili_jct}', timeout=5,
+                                   json=data).json()
 
     def submit_client(self):
         logger.info('使用客户端api端提交')
@@ -719,6 +722,8 @@ class Data:
     """
     cover: 封面图片，可由recovers方法得到视频的帧截图
     """
+    act_reserve_create: int = 0
+    dolby: int = 0
     copyright: int = 2
     source: str = ''
     tid: int = 21
@@ -733,7 +738,11 @@ class Data:
     dtime: Any = None
     open_subtitle: InitVar[bool] = False
 
-    # interactive: int = 0
+    interactive: int = 0
+    lossless_music: int = 0
+    no_disturbance: int = 0
+    recreate: int = -1
+    web_os: int = 2
     # no_reprint: int 1
     # open_elec: int 1
 
